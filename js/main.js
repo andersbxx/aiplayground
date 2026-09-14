@@ -4,12 +4,18 @@
 import { initSettings, loadSettings } from './config.js';
 import { callGemini, listModels } from './gemini.js';
 
+// Sessions-lagring (sparar varje chatt med alla demo-iterationer)
+const SESSIONS_KEY = 'AI_SESSIONS';
+const ACTIVE_KEY = 'AI_ACTIVE_SESSION';
+
 // State
 const state = {
   settings: null,        // { key, model }
   history: [],           // [{ role, content }]
   busy: false,
-  demoCount: 0
+  demoCount: 0,
+  sessions: [],          // [{ id, title, ts, updated, history }]
+  activeId: null
 };
 
 const $ = (id) => document.getElementById(id);
@@ -33,7 +39,12 @@ const els = {
   startBtn: $('startBtn'),
   newBtn: $('newBtn'),
   gearBtn: $('gearBtn'),
-  closeSheet: $('closeSheet')
+  closeSheet: $('closeSheet'),
+  chatsBtn: $('chatsBtn'),
+  chatsDrawer: $('chatsDrawer'),
+  chatList: $('chatList'),
+  closeDrawer: $('closeDrawer'),
+  newChatBtn: $('newChatBtn')
 };
 
 // ————— Toast —————
@@ -101,6 +112,9 @@ function addDemoCard(html, aim) {
         <button class="icon-btn" data-act="pop" title="Öppna i ny flik" aria-label="Öppna i ny flik">
 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
         </button>
+        <button class="icon-btn" data-act="dl" title="Ladda ner .html" aria-label="Ladda ner som HTML-fil">
+<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+        </button>
         <button class="icon-btn" data-act="del" title="Ta bort" aria-label="Ta bort">
 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
@@ -136,9 +150,22 @@ function handleDemoAction(act, card, html) {
     const win = window.open('', '_blank');
     if (win) { win.document.write(html); win.document.close(); }
     else toast('Popup-blockerare — tillåt popups för den här sidan');
+  } else if (act === 'dl') {
+    const name = `demo-${state.demoCount}.html`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast(name + ' laddad ner');
   } else if (act === 'del') {
     card.remove();
-    state.history = state.history.splice(0, state.history.length - 2);
+    state.history = state.history.slice(0, -2);
+    commitSession();
     toast('Demo borttagen');
   }
 }
@@ -200,6 +227,7 @@ async function sendPrompt(text) {
   els.promptInput.value = '';
   els.emptyState.classList.remove('show');
   addMessage('user', text);
+  maybeSetSessionTitle(text);
   const removeDots = typingIndicator();
   setBusy(true);
 
@@ -208,6 +236,7 @@ async function sendPrompt(text) {
     state.history.push({ role: 'user', content: text });
     state.history.push({ role: 'model', content: html });
     if (state.history.length > 40) state.history = state.history.slice(-40);
+    commitSession();
 
     removeDots();
     if (model !== state.settings.model) {
@@ -334,12 +363,131 @@ async function saveSession() {
 }
 
 function newSession() {
+  createSession();
+  toast('Ny chatt');
+  els.promptInput.focus();
+}
+
+// ————— Sessions (sparade chattar) —————
+function loadSessions() {
+  try { state.sessions = JSON.parse(localStorage.getItem(SESSIONS_KEY)) || []; }
+  catch (_) { state.sessions = []; }
+  if (!Array.isArray(state.sessions)) state.sessions = [];
+}
+function saveSessions() {
+  try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(state.sessions.slice(-50))); }
+  catch (_) {}
+}
+function currentSession() {
+  return state.sessions.find((s) => s.id === state.activeId) || null;
+}
+function commitSession() {
+  const s = currentSession();
+  if (!s) return;
+  s.history = state.history.slice();
+  s.updated = Date.now();
+  saveSessions();
+}
+function maybeSetSessionTitle(text) {
+  const s = currentSession();
+  if (!s || s.title) return;
+  const t = (text || '').trim() || 'Ny chatt';
+  s.title = t.length > 44 ? t.slice(0, 44) + '…' : t;
+}
+function createSession() {
+  const fresh = { id: 's' + Date.now().toString(36), title: '', ts: Date.now(), updated: Date.now(), history: [] };
+  state.sessions.push(fresh);
+  state.activeId = fresh.id;
+  localStorage.setItem(ACTIVE_KEY, fresh.id);
   state.history = [];
   state.demoCount = 0;
-  els.chatContainer.innerHTML = '';
+  clearChat();
   openChat();
-  toast('Ny session');
-  els.promptInput.focus();
+  saveSessions();
+  return fresh;
+}
+// Tömmer chatten men återskapar empty-state (den är barn av #chatContainer och försvinner annars)
+function clearChat() {
+  els.chatContainer.innerHTML = '';
+  const fresh = els.emptyState.cloneNode(true);
+  fresh.querySelectorAll('.chip').forEach((chip) => {
+    chip.addEventListener('click', () => sendPrompt(chip.dataset.prompt));
+  });
+  els.emptyState = fresh;
+  els.chatContainer.appendChild(fresh);
+}
+// Växlar aktiv session och återskapar hela chatten (meddelanden + demo-kort) från dess historik
+function switchActive(s) {
+  state.activeId = s.id;
+  localStorage.setItem(ACTIVE_KEY, s.id);
+  state.history = s.history.slice();
+  state.demoCount = 0;
+  clearChat();
+  let lastUser = '';
+  s.history.forEach((m) => {
+    if (m.role === 'user') { lastUser = m.content; addMessage('user', m.content); }
+    else if (m.content && m.content.trim()) addDemoCard(m.content, lastUser);
+  });
+  openChat();
+}
+function openChatsDrawer() {
+  renderChatList();
+  els.chatsDrawer.classList.add('open');
+  els.chatsDrawer.setAttribute('aria-hidden', 'false');
+}
+function closeChatsDrawer() {
+  els.chatsDrawer.classList.remove('open');
+  els.chatsDrawer.setAttribute('aria-hidden', 'true');
+}
+function renderChatList() {
+  els.chatList.innerHTML = '';
+  const list = state.sessions.slice().sort((a, b) => b.updated - a.updated);
+  if (!list.length) {
+    els.chatList.innerHTML = '<div class="chat-empty">Inga sparade chattar än.<br>De som blir bra sparas här automatiskt.</div>';
+    return;
+  }
+  list.forEach((s) => {
+    const item = document.createElement('button');
+    item.className = 'chat-item' + (s.id === state.activeId ? ' active' : '');
+    const demos = s.history.filter((m) => m.role === 'model').length;
+    const d = new Date(s.updated);
+    const sub = `${demos} demo${demos === 1 ? '' : 's'} · ${d.toLocaleDateString('sv-SE')} ${d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}`;
+    const inner = document.createElement('span');
+    inner.className = 'chat-item-main';
+    inner.innerHTML = `<span class="chat-item-title">${escHtml(s.title || 'Ny chatt')}</span>` +
+      `<span class="chat-item-sub">${escHtml(sub)}</span>`;
+    item.appendChild(inner);
+
+    const del = document.createElement('button');
+    del.className = 'chat-item-del';
+    del.title = 'Ta bort';
+    del.setAttribute('aria-label', 'Ta bort den här chatten');
+    del.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+    del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.id); });
+    item.appendChild(del);
+
+    item.addEventListener('click', () => loadSession(s.id));
+    els.chatList.appendChild(item);
+  });
+}
+function loadSession(id) {
+  const s = state.sessions.find((x) => x.id === id);
+  if (!s) return;
+  switchActive(s);
+  closeChatsDrawer();
+  toast('Öppnade: ' + (s.title || 'Ny chatt'));
+}
+function deleteSession(id) {
+  const wasActive = state.activeId === id;
+  state.sessions = state.sessions.filter((s) => s.id !== id);
+  if (wasActive) {
+    const next = state.sessions.slice().sort((a, b) => b.updated - a.updated)[0] || null;
+    if (next) switchActive(next);
+    else { state.activeId = null; localStorage.removeItem(ACTIVE_KEY); createSession(); }
+  }
+  saveSessions();
+  renderChatList();
+  toast('Chatt borttagen');
 }
 
 // ————— Event wiring —————
@@ -369,11 +517,19 @@ els.apiKey.addEventListener('blur', () => {
 document.querySelectorAll('#suggestChips .chip').forEach((chip) => {
   chip.addEventListener('click', () => sendPrompt(chip.dataset.prompt));
 });
+els.chatsBtn.addEventListener('click', openChatsDrawer);
+els.closeDrawer.addEventListener('click', closeChatsDrawer);
+document.querySelectorAll('[data-close-drawer]').forEach((el) => el.addEventListener('click', closeChatsDrawer));
+els.newChatBtn.addEventListener('click', () => { newSession(); closeChatsDrawer(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeChatsDrawer(); });
 
 // ————— Init —————
+loadSessions();
 fillSettings();
 updateModelChip();
-openChat();
+const active = state.sessions.find((s) => s.id === localStorage.getItem(ACTIVE_KEY));
+if (active) switchActive(active);
+else createSession();
 // Första körning: inga sparade inställningar → öppna inställningarna direkt
 if (!loadSettings().key) {
   openSheet();

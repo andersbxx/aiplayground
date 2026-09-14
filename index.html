@@ -24,6 +24,9 @@
         <span class="brand-name">AiPlayground</span>
       </div>
       <div class="top-actions">
+        <button class="icon-btn" id="chatsBtn" title="Mina chattar" aria-label="Mina chattar">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        </button>
         <button class="icon-btn" id="newBtn" title="Ny session" aria-label="Ny session">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
@@ -117,6 +120,23 @@
             <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Skaffa en gratis nyckel</a>.
           </p>
         </div>
+      </section>
+    </div>
+
+    <!-- Chats drawer -->
+    <div class="drawer-wrap" id="chatsDrawer" aria-hidden="true">
+      <div class="scrim" data-close-drawer></div>
+      <section class="drawer" role="dialog" aria-modal="true" aria-label="Mina chattar">
+        <header class="drawer-head">
+          <h2>Mina chattar</h2>
+          <button class="icon-btn" id="closeDrawer" aria-label="Stäng">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </header>
+        <div class="drawer-actions">
+          <button class="save-btn" id="newChatBtn">Ny chatt</button>
+        </div>
+        <div class="chat-list" id="chatList"></div>
       </section>
     </div>
   </div>
