@@ -458,8 +458,15 @@ function renderChatList() {
       `<span class="chat-item-sub">${escHtml(sub)}</span>`;
     item.appendChild(inner);
 
+    const ex = document.createElement('button');
+    ex.className = 'chat-item-del';
+    ex.title = 'Exportera som Markdown';
+    ex.setAttribute('aria-label', 'Exportera chatt som Markdown');
+    ex.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>';
+    ex.addEventListener('click', (e) => { e.stopPropagation(); exportSession(s.id); });
+    item.appendChild(ex);
+
     const del = document.createElement('button');
-    del.className = 'chat-item-del';
     del.title = 'Ta bort';
     del.setAttribute('aria-label', 'Ta bort den här chatten');
     del.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
@@ -476,6 +483,51 @@ function loadSession(id) {
   switchActive(s);
   closeChatsDrawer();
   toast('Öppnade: ' + (s.title || 'Ny chatt'));
+}
+function slugify(s) {
+  return String(s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'chatt';
+}
+function exportSession(id) {
+  const s = state.sessions.find((x) => x.id === id);
+  if (!s) return;
+  const lines = [];
+  lines.push('# ' + (s.title || 'Ny chatt'));
+  lines.push('');
+  lines.push('*Sparad från AiPlayground · ' + new Date(s.updated).toLocaleString('sv-SE') + '*');
+  lines.push('');
+  let demoN = 0;
+  let promptN = 0;
+  s.history.forEach((m) => {
+    if (m.role === 'user') {
+      promptN++;
+      lines.push('## Prompt ' + promptN + ' — Du');
+      lines.push('');
+      lines.push(m.content);
+      lines.push('');
+    } else if (m.content && m.content.trim()) {
+      demoN++;
+      lines.push('## Demo ' + demoN + ' — AI-genererad (komplett HTML)');
+      lines.push('');
+      lines.push('```html');
+      lines.push(m.content);
+      lines.push('```');
+      lines.push('');
+    }
+  });
+  const md = lines.join('\n');
+  const name = slugify(s.title || 'chatt') + '.md';
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast(name + ' exporterad');
 }
 function deleteSession(id) {
   const wasActive = state.activeId === id;

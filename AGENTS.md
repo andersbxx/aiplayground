@@ -26,6 +26,8 @@ python3 -m http.server 8000
 - Gemini API-nyckel + modellnamn sparas i localStorage (raderas efter ~7 dagar på iOS p.g.a. ITP)
 - **Modellistan hämtas dynamiskt** via `listModels(apiKey)` direkt från Gemini API:n och cachas i 24 h (uppdateras via ↻-knappen)
 - **Automatisk fallback:** `callGemini` provar vald modell först; vid 503/429 (överbelastning) testas `FALLBACKS` direkt (`gemini-2.5-flash`, `gemini-3.5-flash-lite`, `gemini-2.5-flash-lite`, `gemini-flash-lite-latest`) och användaren informeras via chatten vilken modell som svarade. Default = `gemini-2.5-flash` (stabilt alias som inte 503:ar som `gemini-flash-latest` gör).
+- **Sessions:** varje chatt sparas automatiskt (prompts + demo-HTML) i localStorage `AI_SESSIONS` (aktiv = `AI_ACTIVE_SESSION`). "Mina chattar" (☰) öppnar/sparar/raderar; varje tur commitas via `commitSession()`. `clearChat()` återskapar emptyState (som är barn av `#chatContainer` och annars försvinner vid rensning).
+- **Export:** varje session kan laddas ner som Markdown (`exportSession`) med prompts + demos som ```html-block, för att mata vidare i en annan AI. Demo-korten har också nedladdning av enstaka `.html` (data-act="dl", blob + a.download).
 
 ## UI-arkitektur
 
