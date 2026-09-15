@@ -123,6 +123,35 @@ button { font-family: inherit; color: inherit; background: none; border: none; c
 .msg.ai .bubble.error { border-color: rgba(248, 113, 113, .4); color: #fecaca; }
 .msg.ai .bubble a { color: var(--cyan); }
 
+/* ————— Markdown i AI-bubblor ————— */
+.msg.ai .bubble p { margin: .35em 0; }
+.msg.ai .bubble p:first-child { margin-top: 0; }
+.msg.ai .bubble p:last-child { margin-bottom: 0; }
+.msg.ai .bubble h1, .msg.ai .bubble h2, .msg.ai .bubble h3 {
+  margin: .5em 0 .2em; font-weight: 800; letter-spacing: -.01em; line-height: 1.25;
+}
+.msg.ai .bubble h1 { font-size: 1.12em; }
+.msg.ai .bubble h2 { font-size: 1.05em; }
+.msg.ai .bubble h3 { font-size: 1em; }
+.msg.ai .bubble ul, .msg.ai .bubble ol { margin: .35em 0; padding-left: 1.3em; }
+.msg.ai .bubble li { margin: .15em 0; }
+.msg.ai .bubble blockquote {
+  margin: .4em 0; padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--cyan); color: var(--muted);
+}
+.msg.ai .bubble code {
+  background: rgba(255, 255, 255, .09); border: 1px solid rgba(255, 255, 255, .08);
+  padding: 1px 5px; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .86em;
+}
+.msg.ai .bubble pre {
+  margin: .45em 0; padding: 10px 12px; border-radius: 10px;
+  background: #0a0f17; border: 1px solid var(--stroke);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.msg.ai .bubble pre code { background: none; border: none; padding: 0; font-size: 12px; line-height: 1.5; }
+.msg.ai .bubble strong { font-weight: 800; }
+
 /* ————— Typing dots ————— */
 .typing { display: inline-flex; gap: 4px; padding: 4px 2px; align-items: center; }
 .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.1s infinite; }

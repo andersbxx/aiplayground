@@ -74,13 +74,71 @@ function toast(text) {
   toastTimer = setTimeout(() => els.toast.classList.remove('show'), 2200);
 }
 
+// ————— Markdown-rendering (säker: HTML escapes först, bara http(s)/mailto-länkar) —————
+function renderMarkdown(src) {
+  if (!src) return '';
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const inline = (s) => s
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) =>
+      /^(https?:|mailto:)/i.test(u)
+        ? '<a href="' + u.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer nofollow">' + t + '</a>'
+        : t);
+
+  const lines = esc(String(src)).split('\n');
+  const tokens = [];
+  const body = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (/^```/.test(lines[i])) {
+      i++;
+      const buf = [];
+      while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+      if (i < lines.length) i++;
+      tokens.push('<pre><code>' + buf.join('\n') + '</code></pre>');
+      body.push('\u0000' + (tokens.length - 1) + '\u0000');
+    } else {
+      body.push(lines[i]);
+      i++;
+    }
+  }
+
+  let html = '';
+  let open = null;
+  let para = [];
+  const closePara = () => { if (para.length) { html += '<p>' + inline(para.join(' ')) + '</p>'; para = []; } };
+  const closeQuote = () => { if (open === 'quote') { html += '</blockquote>'; open = null; } };
+  const closeList = () => { if (open === 'ul') { html += '</ul>'; open = null; } if (open === 'ol') { html += '</ol>'; open = null; } };
+  const closeAll = () => { closePara(); closeQuote(); closeList(); };
+
+  for (const raw of body) {
+    if (/^\s*$/.test(raw)) { closeAll(); continue; }
+    const tok = raw.match(/^\u0000(\d+)\u0000$/);
+    if (tok) { closeAll(); html += tokens[+tok[1]] + '\n'; continue; }
+    const h = raw.match(/^(#{1,6})\s+(.*)/);
+    if (h) { closeAll(); const lvl = h[1].length; html += '<h' + lvl + '>' + inline(h[2]) + '</h' + lvl + '>'; continue; }
+    const q = raw.match(/^&gt;\s?(.*)/);
+    if (q) { closePara(); closeList(); if (open !== 'quote') { html += '<blockquote>'; open = 'quote'; } html += inline(q[1]) + '<br>'; continue; }
+    const ul = raw.match(/^[-*]\s+(.*)/);
+    if (ul) { closePara(); closeQuote(); if (open !== 'ul') { if (open === 'ol') html += '</ol>'; html += '<ul>'; open = 'ul'; } html += '<li>' + inline(ul[1]) + '</li>'; continue; }
+    const ol = raw.match(/^(\d+)[.)]\s+(.*)/);
+    if (ol) { closePara(); closeQuote(); if (open !== 'ol') { if (open === 'ul') html += '</ul>'; html += '<ol>'; open = 'ol'; } html += '<li>' + inline(ol[2]) + '</li>'; continue; }
+    para.push(raw);
+  }
+  closeAll();
+  return html;
+}
+
 // ————— Skapa meddelanden —————
 function addMessage(role, text, isError) {
   const wrap = document.createElement('div');
   wrap.className = 'msg ' + role;
   const bubble = document.createElement('div');
   bubble.className = 'bubble' + (isError ? ' error' : '');
-  bubble.textContent = text;
+  if (role === 'ai' && !isError) bubble.innerHTML = renderMarkdown(text);
+  else bubble.textContent = text;
   wrap.appendChild(bubble);
   els.chatContainer.appendChild(wrap);
   scrollBottom();
@@ -387,7 +445,6 @@ async function sendPrompt(text) {
 function addPlanReply(reply) {
   const wrap = addMessage('ai', reply);
   const bubble = wrap.querySelector('.bubble');
-  bubble.style.whiteSpace = 'pre-line';
   const chip = document.createElement('button');
   chip.type = 'button';
   chip.className = 'build-chip';
