@@ -48,6 +48,9 @@ const els = {
   chatList: $('chatList'),
   closeDrawer: $('closeDrawer'),
   newChatBtn: $('newChatBtn'),
+  importMdBtn: $('importMdBtn'),
+  importFile: $('importFile'),
+  dropOverlay: $('dropOverlay'),
   modeBygga: $('modeBygga'),
   modePlaner: $('modePlaner'),
   previewPane: $('previewPane'),
@@ -696,9 +699,7 @@ function slugify(s) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'chatt';
 }
-function exportSession(id) {
-  const s = state.sessions.find((x) => x.id === id);
-  if (!s) return;
+function buildExportMd(s) {
   const lines = [];
   lines.push('# ' + (s.title || 'Ny chatt'));
   lines.push('');
@@ -728,7 +729,12 @@ function exportSession(id) {
       lines.push('');
     }
   });
-  const md = lines.join('\n');
+  return lines.join('\n');
+}
+function exportSession(id) {
+  const s = state.sessions.find((x) => x.id === id);
+  if (!s) return;
+  const md = buildExportMd(s);
   const name = slugify(s.title || 'chatt') + '.md';
   const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -752,6 +758,110 @@ function deleteSession(id) {
   saveSessions();
   renderChatList();
   toast('Chatt borttagen');
+}
+
+// ————— Importera .md —————
+function parseImportedMarkdown(text) {
+  if (!text || typeof text !== 'string') return null;
+  const raw = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+  let title = 'Importerad chatt';
+  let i = 0;
+  while (i < raw.length && !raw[i].trim()) i++;
+  const titleMatch = raw[i] ? raw[i].match(/^#\s+(.+)$/) : null;
+  if (titleMatch) { title = titleMatch[1].trim(); i++; }
+
+  const history = [];
+  const push = (obj) => { if (obj && obj.content && obj.content.trim()) history.push(obj); };
+
+  while (i < raw.length) {
+    const line = raw[i];
+    if (/^##\s+/.test(line)) {
+      const hdr = line.slice(3).trim();
+      let kind = null;
+      if (/^Prompt\s+\d+\s*—\s*Du/.test(hdr)) kind = 'prompt';
+      else if (/^AI-svar\s*\(planering\)/.test(hdr)) kind = 'plan';
+      else if (/^Demo\s+\d+\s*—/.test(hdr)) kind = 'demo';
+      i++;
+      if (kind === 'prompt') {
+        const buf = [];
+        while (i < raw.length && !/^##\s+/.test(raw[i])) { if (raw[i].trim()) buf.push(raw[i]); i++; }
+        if (buf.length) push({ role: 'user', content: buf.join('\n') });
+      } else if (kind === 'plan') {
+        const buf = [];
+        while (i < raw.length && !/^##\s+/.test(raw[i])) {
+          const m = raw[i].match(/^>\s?(.*)$/);
+          if (m) buf.push(m[1] === '&nbsp;' ? '' : m[1]);
+          i++;
+        }
+        while (buf.length && !buf[buf.length - 1]) buf.pop();
+        const content = buf.join('\n');
+        if (content.trim()) history.push({ role: 'model', content, kind: 'text' });
+      } else if (kind === 'demo') {
+        while (i < raw.length && !raw[i].trim() && !/^```/.test(raw[i])) i++;
+        const buf = [];
+        if (/^```/.test(raw[i])) {
+          i++;
+          while (i < raw.length && !/^```/.test(raw[i])) { buf.push(raw[i]); i++; }
+          if (i < raw.length) i++;
+        } else {
+          while (i < raw.length && !/^##\s+/.test(raw[i]) && !/^```/.test(raw[i])) { buf.push(raw[i]); i++; }
+        }
+        while (buf.length && !buf[buf.length - 1].trim()) buf.pop();
+        const html = buf.join('\n');
+        if (html.trim()) history.push({ role: 'model', content: html });
+      } else {
+        while (i < raw.length && !/^##\s+/.test(raw[i])) i++;
+      }
+    } else {
+      i++;
+    }
+  }
+  return history.length ? { title, history } : null;
+}
+
+function addImportedSession(parsed) {
+  if (!parsed || !parsed.history || !parsed.history.length) return null;
+  const fresh = {
+    id: 's' + Date.now().toString(36),
+    title: (parsed.title || 'Importerad chatt').slice(0, 60),
+    ts: Date.now(), updated: Date.now(),
+    history: parsed.history
+  };
+  state.sessions.push(fresh);
+  saveSessions();
+  switchActive(fresh);
+  return fresh;
+}
+
+async function importSessionFromFile(file) {
+  if (!file) return;
+  let text = '';
+  try { text = await file.text(); } catch (_) { toast('Kunde inte läsa filen'); return; }
+  const parsed = parseImportedMarkdown(text);
+  if (!parsed || !parsed.history.length) { toast('Filen verkar inte vara en AiPlayground-export'); return; }
+  const fresh = addImportedSession(parsed);
+  if (!fresh) { toast('Filen verkar inte vara en AiPlayground-export'); return; }
+  closeChatsDrawer();
+  toast('Importerad: ' + (fresh.title || 'Importerad chatt'));
+}
+
+// ————— Drag & drop (desktop ≥900px) —————
+const DROP_MQ = window.matchMedia('(min-width: 900px)');
+function installDropImport() {
+  if (!els.dropOverlay) return;
+  let depth = 0;
+  const show = (on) => { els.dropOverlay.classList.toggle('show', on); els.dropOverlay.setAttribute('aria-hidden', String(!on)); };
+  const isMd = (f) => { const n = (f.name || '').toLowerCase(); return /\.(md|markdown)$/.test(n) || f.type === 'text/markdown'; };
+  window.addEventListener('dragenter', (e) => { if (!DROP_MQ.matches) return; if (!e.dataTransfer || ![...e.dataTransfer.items].some((it) => it.kind === 'file')) return; depth++; show(true); });
+  window.addEventListener('dragover', (e) => { if (!DROP_MQ.matches) return; e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; });
+  window.addEventListener('dragleave', () => { if (!DROP_MQ.matches) return; if (depth > 0) depth--; if (depth === 0) show(false); });
+  window.addEventListener('drop', (e) => {
+    if (!DROP_MQ.matches) return;
+    e.preventDefault(); depth = 0; show(false);
+    const md = Array.from((e.dataTransfer && e.dataTransfer.files) || []).find(isMd);
+    if (md) importSessionFromFile(md);
+    else if ((e.dataTransfer.files || []).length) toast('Släpp bara .md-filer här');
+  });
 }
 
 // ————— Event wiring —————
@@ -785,6 +895,12 @@ els.chatsBtn.addEventListener('click', openChatsDrawer);
 els.closeDrawer.addEventListener('click', closeChatsDrawer);
 document.querySelectorAll('[data-close-drawer]').forEach((el) => el.addEventListener('click', closeChatsDrawer));
 els.newChatBtn.addEventListener('click', () => { newSession(); closeChatsDrawer(); });
+els.importMdBtn.addEventListener('click', () => els.importFile.click());
+els.importFile.addEventListener('change', () => {
+  const f = els.importFile.files && els.importFile.files[0];
+  if (f) importSessionFromFile(f);
+  els.importFile.value = '';
+});
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeChatsDrawer(); });
 
 // Preview-panel (desktop)
@@ -811,3 +927,12 @@ else createSession();
 if (!loadSettings().key) {
   openSheet();
 }
+installDropImport();
+window.__AI_PLAYGROUND_TEST__ = {
+  state,
+  buildExportMd,
+  parseImportedMarkdown,
+  addImportedSession,
+  importSessionFromFile,
+  dropEnabled: () => DROP_MQ.matches
+};

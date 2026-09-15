@@ -182,10 +182,15 @@
         </header>
         <div class="drawer-actions">
           <button class="save-btn" id="newChatBtn">Ny chatt</button>
+          <button class="btn-outline" id="importMdBtn">Importera .md</button>
+          <input type="file" id="importFile" accept=".md,.markdown,text/markdown,text/plain" hidden>
         </div>
         <div class="chat-list" id="chatList"></div>
       </section>
     </div>
+
+    <!-- Drag & drop-overlay (desktop ≥900px) -->
+    <div class="drop-overlay" id="dropOverlay" aria-hidden="true">Släpp din .md här</div>
   </div>
 
   <script type="module" src="js/main.js"></script>
