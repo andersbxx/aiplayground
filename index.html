@@ -37,46 +37,89 @@
       </div>
     </header>
 
-    <!-- Active model chip -->
-    <div class="model-chip-wrap">
-      <button class="model-chip" id="modelChip" title="Byt modell">
-        <span class="model-dot" aria-hidden="true"></span>
-        <span id="modelChipText">Ingen modell</span>
-      </button>
-    </div>
-
-    <!-- Chat -->
-    <main class="chat" id="chatContainer" role="log" aria-live="polite">
-
-      <!-- Empty state -->
-      <section class="empty" id="emptyState">
-        <div class="empty-orbit" aria-hidden="true">
-          <span class="orbit-glint"></span>
+    <!-- Workspace: chat (left) + preview (right, desktop) -->
+    <div class="workspace">
+      <aside class="chat-col">
+        <!-- Active model chip -->
+        <div class="model-chip-wrap">
+          <button class="model-chip" id="modelChip" title="Byt modell">
+            <span class="model-dot" aria-hidden="true"></span>
+            <span id="modelChipText">Ingen modell</span>
+          </button>
         </div>
-        <h1>Bygg något. Prova. Förfina.</h1>
-        <p>Beskriv en idé — jag genererar en körbar demo direkt. Feedback är bara en ny prompt bort.</p>
-        <div class="chips" id="suggestChips">
-          <button class="chip" data-prompt="Bygg en minimalistisk todo-app med mörkt läge, drag-and-drop och lokal lagring">Todo-app i mörkt läge</button>
-          <button class="chip" data-prompt="Skapa en väderwidget som visar väder med ikoner, animerad molntextur">Väderwidget</button>
-          <button class="chip" data-prompt="Bygg en räknare med fullständig tangentbordslayout och animationer">Kalkylator</button>
-          <button class="chip" data-prompt="Gör en stavningslek för barn med ljud och poängräkning">Lek & lär</button>
+
+        <!-- Chat -->
+        <main class="chat" id="chatContainer" role="log" aria-live="polite">
+
+          <!-- Empty state -->
+          <section class="empty" id="emptyState">
+            <div class="empty-orbit" aria-hidden="true">
+              <span class="orbit-glint"></span>
+            </div>
+            <h1>Bygg något. Prova. Förfina.</h1>
+            <p>Beskriv en idé — jag genererar en körbar demo direkt. Feedback är bara en ny prompt bort.</p>
+            <div class="chips" id="suggestChips">
+              <button class="chip" data-prompt="Bygg en minimalistisk todo-app med mörkt läge, drag-and-drop och lokal lagring">Todo-app i mörkt läge</button>
+              <button class="chip" data-prompt="Skapa en väderwidget som visar väder med ikoner, animerad molntextur">Väderwidget</button>
+              <button class="chip" data-prompt="Bygg en räknare med fullständig tangentbordslayout och animationer">Kalkylator</button>
+              <button class="chip" data-prompt="Gör en stavningslek för barn med ljud och poängräkning">Lek & lär</button>
+            </div>
+          </section>
+        </main>
+
+        <!-- Toast -->
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+        <!-- Input bar -->
+        <footer class="inputbar">
+          <div class="input-shell">
+            <input type="text" id="promptInput" placeholder="Beskriv vad du vill bygga…" autocomplete="off" autocapitalize="sentences" spellcheck="false">
+            <button class="send-btn" id="sendBtn" aria-label="Skicka">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+          <p class="input-hint" id="inputHint">Anslut en API-nyckel i inställningarna för att börja</p>
+        </footer>
+      </aside>
+
+      <!-- Preview pane (desktop only) -->
+      <section class="preview-pane" id="previewPane" aria-label="Demo-preview">
+        <header class="preview-head">
+          <span class="preview-title" id="previewTitle">Ingen demo vald</span>
+          <span class="preview-actions">
+            <button class="icon-btn preview-btn" id="pvCodeBtn" title="Visa kod" aria-label="Visa kod">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </button>
+            <button class="icon-btn preview-btn" id="pvReloadBtn" title="Ladda om" aria-label="Ladda om">⟳</button>
+            <button class="icon-btn preview-btn" id="pvCopyBtn" title="Kopiera HTML" aria-label="Kopiera HTML">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            </button>
+            <button class="icon-btn preview-btn" id="pvPopBtn" title="Öppna i ny flik" aria-label="Öppna i ny flik">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
+            </button>
+            <button class="icon-btn preview-btn" id="pvDlBtn" title="Ladda ner .html" aria-label="Ladda ner som HTML-fil">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            </button>
+          </span>
+        </header>
+        <div class="preview-stage">
+          <div class="preview-frame" id="previewFrame">
+            <iframe id="previewIframe" sandbox="allow-scripts allow-modals" title="AI-genererad demo (stor vy)"></iframe>
+          </div>
+          <div class="preview-empty" id="previewEmpty">
+            <p>Din senaste demo visas här.</p>
+            <p class="muted">Skriv en prompt, eller klicka på en demo i chatten för att stora den.</p>
+          </div>
+          <div class="preview-code hidden" id="previewCode">
+            <pre class="code-body"><code id="codeBody"></code></pre>
+          </div>
         </div>
+        <footer class="preview-meta">
+          <span class="tag">live</span>
+          <span class="preview-aim" id="previewMetaText"></span>
+        </footer>
       </section>
-    </main>
-
-    <!-- Toast -->
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-    <!-- Input bar -->
-    <footer class="inputbar">
-      <div class="input-shell">
-        <input type="text" id="promptInput" placeholder="Beskriv vad du vill bygga…" autocomplete="off" autocapitalize="sentences" spellcheck="false">
-        <button class="send-btn" id="sendBtn" aria-label="Skicka">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </button>
-      </div>
-      <p class="input-hint" id="inputHint">Anslut en API-nyckel i inställningarna för att börja</p>
-    </footer>
+    </div>
 
     <!-- Settings sheet -->
     <div class="modal" id="settingsSheet" aria-hidden="true">

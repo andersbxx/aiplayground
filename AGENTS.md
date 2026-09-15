@@ -28,6 +28,7 @@ python3 -m http.server 8000
 - **Automatisk fallback:** `callGemini` provar vald modell först; vid 503/429 (överbelastning) testas `FALLBACKS` direkt (`gemini-2.5-flash`, `gemini-3.5-flash-lite`, `gemini-2.5-flash-lite`, `gemini-flash-lite-latest`) och användaren informeras via chatten vilken modell som svarade. Default = `gemini-2.5-flash` (stabilt alias som inte 503:ar som `gemini-flash-latest` gör).
 - **Sessions:** varje chatt sparas automatiskt (prompts + demo-HTML) i localStorage `AI_SESSIONS` (aktiv = `AI_ACTIVE_SESSION`). "Mina chattar" (☰) öppnar/sparar/raderar; varje tur commitas via `commitSession()`. `clearChat()` återskapar emptyState (som är barn av `#chatContainer` och annars försvinner vid rensning).
 - **Export:** varje session kan laddas ner som Markdown (`exportSession`) med prompts + demos som ```html-block, för att mata vidare i en annan AI. Demo-korten har också nedladdning av enstaka `.html` (data-act="dl", blob + a.download).
+- **Desktop ≥ 900 px:** `.workspace` (row) med `.chat-col` (chatt, ~38vw) + `.preview-pane` (höger, stor demo-vy). Demo-korten i chatten komprimeras till titelrad (`nth-child` i CSS). Klick på ett demo-kort pinnar det till preview (`syncPreview`/`showPreview`, `state.latestDemo`). Kodvyn är en read-only toggle (`pvCodeBtn` → `togglePreviewCode`, textContent, aldrig innerHTML). Mobil = exakt samma single-column UX (preview `display:none`).
 
 ## UI-arkitektur
 

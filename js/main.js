@@ -15,7 +15,8 @@ const state = {
   busy: false,
   demoCount: 0,
   sessions: [],          // [{ id, title, ts, updated, history }]
-  activeId: null
+  activeId: null,
+  latestDemo: null       // { html, aim } för preview-panelen (desktop)
 };
 
 const $ = (id) => document.getElementById(id);
@@ -44,7 +45,20 @@ const els = {
   chatsDrawer: $('chatsDrawer'),
   chatList: $('chatList'),
   closeDrawer: $('closeDrawer'),
-  newChatBtn: $('newChatBtn')
+  newChatBtn: $('newChatBtn'),
+  previewPane: $('previewPane'),
+  previewTitle: $('previewTitle'),
+  previewFrame: $('previewFrame'),
+  previewIframe: $('previewIframe'),
+  previewEmpty: $('previewEmpty'),
+  previewCode: $('previewCode'),
+  codeBody: $('codeBody'),
+  previewMetaText: $('previewMetaText'),
+  pvCodeBtn: $('pvCodeBtn'),
+  pvReloadBtn: $('pvReloadBtn'),
+  pvCopyBtn: $('pvCopyBtn'),
+  pvPopBtn: $('pvPopBtn'),
+  pvDlBtn: $('pvDlBtn')
 };
 
 // ————— Toast —————
@@ -96,6 +110,7 @@ function typingIndicator() {
 // ————— Demo-kort —————
 function addDemoCard(html, aim) {
   state.demoCount++;
+  const demoN = state.demoCount;
   const meta = aim && aim.length > 90 ? aim.slice(0, 90) + '…' : (aim || '');
 
   const card = document.createElement('article');
@@ -134,7 +149,88 @@ function addDemoCard(html, aim) {
 
   els.chatContainer.appendChild(card);
   scrollBottom();
+
+  // Nyaste demo → preview-panelen (desktop); klick på kortet pinnar den dit
+  state.latestDemo = { html, aim: meta, n: demoN };
+  syncPreview(state.latestDemo);
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    state.latestDemo = { html, aim: meta, n: demoN };
+    syncPreview(state.latestDemo);
+    showPreview();
+  });
   return card;
+}
+
+// ————— Preview-panel (desktop) —————
+function showPreview() {
+  if (!state.latestDemo) return;
+  els.previewEmpty.classList.remove('show');
+  els.previewCode.classList.add('hidden');
+  els.previewFrame.classList.remove('hidden');
+  els.previewIframe.setAttribute('srcdoc', state.latestDemo.html);
+  const n = state.latestDemo.n || state.demoCount || '—';
+  els.previewTitle.textContent = 'Demo ' + n + ' — ' + state.latestDemo.aim;
+  els.previewMetaText.textContent = state.latestDemo.html.length.toLocaleString('sv-SE') + ' tecken · ' + state.latestDemo.aim;
+}
+function syncPreview(demo) {
+  if (!demo || !els.previewPane) return;
+  showPreview();
+}
+function resetPreview() {
+  state.latestDemo = null;
+  els.previewTitle.textContent = 'Ingen demo vald';
+  els.previewMetaText.textContent = '';
+  els.previewEmpty.classList.add('show');
+  els.previewCode.classList.add('hidden');
+  els.previewFrame.classList.remove('hidden');
+  els.previewIframe.removeAttribute('srcdoc');
+}
+function togglePreviewCode() {
+  const show = els.previewCode.classList.contains('hidden');
+  if (show) {
+    els.codeBody.textContent = state.latestDemo ? state.latestDemo.html : '';
+    els.previewCode.classList.remove('hidden');
+    els.previewFrame.classList.add('hidden');
+    els.pvCodeBtn.title = 'Visa demo';
+    els.pvCodeBtn.setAttribute('aria-label', 'Visa demo');
+  } else {
+    els.previewCode.classList.add('hidden');
+    els.previewFrame.classList.remove('hidden');
+    els.pvCodeBtn.title = 'Visa kod';
+    els.pvCodeBtn.setAttribute('aria-label', 'Visa kod');
+  }
+}
+function handlePreviewAction(act) {
+  const demo = state.latestDemo;
+  if (!demo) return;
+  const html = demo.html;
+  if (act === 'reload') {
+    const old = els.previewIframe;
+    const fresh = buildFrameDirect(html);
+    fresh.id = 'previewIframe';
+    old.parentNode.replaceChild(fresh, old);
+    els.previewIframe = fresh;
+    toast('Demo omladdad');
+  } else if (act === 'copy') {
+    copyText(html);
+  } else if (act === 'pop') {
+    const win = window.open('', '_blank');
+    if (win) { win.document.write(html); win.document.close(); }
+    else toast('Popup-blockerare — tillåt popups för den här sidan');
+  } else if (act === 'dl') {
+    const name = 'demo-' + (state.demoCount || 1) + '.html';
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast(name + ' laddad ner');
+  }
 }
 
 function handleDemoAction(act, card, html) {
@@ -408,6 +504,7 @@ function createSession() {
 }
 // Tömmer chatten men återskapar empty-state (den är barn av #chatContainer och försvinner annars)
 function clearChat() {
+  resetPreview();
   els.chatContainer.innerHTML = '';
   const fresh = els.emptyState.cloneNode(true);
   fresh.querySelectorAll('.chip').forEach((chip) => {
@@ -574,6 +671,13 @@ els.closeDrawer.addEventListener('click', closeChatsDrawer);
 document.querySelectorAll('[data-close-drawer]').forEach((el) => el.addEventListener('click', closeChatsDrawer));
 els.newChatBtn.addEventListener('click', () => { newSession(); closeChatsDrawer(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeChatsDrawer(); });
+
+// Preview-panel (desktop)
+els.pvReloadBtn.addEventListener('click', () => handlePreviewAction('reload'));
+els.pvCopyBtn.addEventListener('click', () => handlePreviewAction('copy'));
+els.pvPopBtn.addEventListener('click', () => handlePreviewAction('pop'));
+els.pvDlBtn.addEventListener('click', () => handlePreviewAction('dl'));
+els.pvCodeBtn.addEventListener('click', togglePreviewCode);
 
 // ————— Init —————
 loadSessions();
