@@ -2,21 +2,23 @@
 // Orkestrering: settings-sheet → chat → Gemini → demo-kort i chatten.
 
 import { initSettings, loadSettings } from './config.js';
-import { callGemini, listModels } from './gemini.js';
+import { callGemini, callGeminiText, listModels } from './gemini.js';
 
 // Sessions-lagring (sparar varje chatt med alla demo-iterationer)
 const SESSIONS_KEY = 'AI_SESSIONS';
 const ACTIVE_KEY = 'AI_ACTIVE_SESSION';
+const MODE_KEY = 'AI_MODE';
 
 // State
 const state = {
   settings: null,        // { key, model }
-  history: [],           // [{ role, content }]
+  history: [],           // [{ role, content, kind? }]
   busy: false,
   demoCount: 0,
   sessions: [],          // [{ id, title, ts, updated, history }]
   activeId: null,
-  latestDemo: null       // { html, aim } för preview-panelen (desktop)
+  latestDemo: null,      // { html, aim } för preview-panelen (desktop)
+  mode: 'build'          // 'build' | 'plan'
 };
 
 const $ = (id) => document.getElementById(id);
@@ -46,6 +48,8 @@ const els = {
   chatList: $('chatList'),
   closeDrawer: $('closeDrawer'),
   newChatBtn: $('newChatBtn'),
+  modeBygga: $('modeBygga'),
+  modePlaner: $('modePlaner'),
   previewPane: $('previewPane'),
   previewTitle: $('previewTitle'),
   previewFrame: $('previewFrame'),
@@ -260,7 +264,12 @@ function handleDemoAction(act, card, html) {
     toast(name + ' laddad ner');
   } else if (act === 'del') {
     card.remove();
-    state.history = state.history.slice(0, -2);
+    // Ta bort exakt rätt historikpar (demo + dess prompt), även om plan-svar blandats in
+    const idx = state.history.map((m) => m.content).lastIndexOf(html);
+    if (idx >= 0) {
+      const start = (idx >= 1 && state.history[idx - 1].role === 'user') ? idx - 1 : idx;
+      state.history.splice(start, (idx - start) + 1);
+    }
     commitSession();
     toast('Demo borttagen');
   }
@@ -303,11 +312,22 @@ function setBusy(on) {
   els.promptInput.disabled = on;
 }
 
+// ————— Arbetsläge (Bygga / Planera) —————
+function setMode(mode) {
+  if (state.mode === mode) return;
+  state.mode = mode;
+  try { localStorage.setItem(MODE_KEY, mode); } catch (_) {}
+  els.modeBygga.classList.toggle('active', mode === 'build');
+  els.modePlaner.classList.toggle('active', mode === 'plan');
+  openChat();
+}
+
 // ————— Huvudflöde —————
 function openChat() {
   els.emptyState.classList.toggle('show', state.history.length === 0);
+  const modeLabel = state.mode === 'plan' ? 'Planera · ' : '';
   els.inputHint.textContent = state.settings
-    ? 'Modell · ' + state.settings.model
+    ? modeLabel + 'Modell · ' + state.settings.model
     : 'Anslut en API-nyckel i inställningarna för att börja';
   scrollBottom();
 }
@@ -328,17 +348,32 @@ async function sendPrompt(text) {
   setBusy(true);
 
   try {
-    const { html, model } = await callGemini(state.history, text, state.settings.key, state.settings.model);
-    state.history.push({ role: 'user', content: text });
-    state.history.push({ role: 'model', content: html });
-    if (state.history.length > 40) state.history = state.history.slice(-40);
-    commitSession();
+    const isPlan = state.mode === 'plan';
+    if (isPlan) {
+      const { text: reply, model } = await callGeminiText(state.history, text, state.settings.key, state.settings.model);
+      state.history.push({ role: 'user', content: text });
+      state.history.push({ role: 'model', content: reply, kind: 'text' });
+      if (state.history.length > 40) state.history = state.history.slice(-40);
+      commitSession();
 
-    removeDots();
-    if (model !== state.settings.model) {
-      addMessage('ai', `ℹ️ "${state.settings.model}" var överbelastad — svarade med "${model}" istället.`);
+      removeDots();
+      if (model !== state.settings.model) {
+        addMessage('ai', `ℹ️ "${state.settings.model}" var överbelastad — svarade med "${model}" istället.`);
+      }
+      addPlanReply(reply);
+    } else {
+      const { html, model } = await callGemini(state.history, text, state.settings.key, state.settings.model);
+      state.history.push({ role: 'user', content: text });
+      state.history.push({ role: 'model', content: html });
+      if (state.history.length > 40) state.history = state.history.slice(-40);
+      commitSession();
+
+      removeDots();
+      if (model !== state.settings.model) {
+        addMessage('ai', `ℹ️ "${state.settings.model}" var överbelastad — svarade med "${model}" istället.`);
+      }
+      addDemoCard(html, text);
     }
-    addDemoCard(html, text);
   } catch (err) {
     removeDots();
     addMessage('ai', err.message, true);
@@ -346,6 +381,23 @@ async function sendPrompt(text) {
     setBusy(false);
     els.promptInput.focus();
   }
+}
+
+// Planläge-svar: vanlig textbubbla + genväg till bygget
+function addPlanReply(reply) {
+  const wrap = addMessage('ai', reply);
+  const bubble = wrap.querySelector('.bubble');
+  bubble.style.whiteSpace = 'pre-line';
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'build-chip';
+  chip.innerHTML = 'Bygg det här <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  chip.addEventListener('click', () => {
+    setMode('build');
+    toast('Byggläge — beskriv vad jag ska bygga');
+    els.promptInput.focus();
+  });
+  bubble.appendChild(chip);
 }
 
 // ————— Dynamic model list —————
@@ -523,6 +575,7 @@ function switchActive(s) {
   let lastUser = '';
   s.history.forEach((m) => {
     if (m.role === 'user') { lastUser = m.content; addMessage('user', m.content); }
+    else if (m.kind === 'text') addMessage('ai', m.content);
     else if (m.content && m.content.trim()) addDemoCard(m.content, lastUser);
   });
   openChat();
@@ -546,7 +599,7 @@ function renderChatList() {
   list.forEach((s) => {
     const item = document.createElement('button');
     item.className = 'chat-item' + (s.id === state.activeId ? ' active' : '');
-    const demos = s.history.filter((m) => m.role === 'model').length;
+    const demos = s.history.filter((m) => m.role === 'model' && m.kind !== 'text').length;
     const d = new Date(s.updated);
     const sub = `${demos} demo${demos === 1 ? '' : 's'} · ${d.toLocaleDateString('sv-SE')} ${d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}`;
     const inner = document.createElement('span');
@@ -602,6 +655,11 @@ function exportSession(id) {
       lines.push('## Prompt ' + promptN + ' — Du');
       lines.push('');
       lines.push(m.content);
+      lines.push('');
+    } else if (m.kind === 'text') {
+      lines.push('## AI-svar (planering)');
+      lines.push('');
+      m.content.split('\n').forEach((l) => lines.push('> ' + (l || '&nbsp;')));
       lines.push('');
     } else if (m.content && m.content.trim()) {
       demoN++;
@@ -679,7 +737,13 @@ els.pvPopBtn.addEventListener('click', () => handlePreviewAction('pop'));
 els.pvDlBtn.addEventListener('click', () => handlePreviewAction('dl'));
 els.pvCodeBtn.addEventListener('click', togglePreviewCode);
 
+// Arbetsläge
+els.modeBygga.addEventListener('click', () => setMode('build'));
+els.modePlaner.addEventListener('click', () => setMode('plan'));
+
 // ————— Init —————
+const savedMode = localStorage.getItem(MODE_KEY);
+if (savedMode === 'plan') setMode('plan');
 loadSessions();
 fillSettings();
 updateModelChip();

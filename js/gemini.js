@@ -69,6 +69,16 @@ export const SYSTEM_PROMPT = [
   'Anpassa alltid efter användarens senaste feedback och ändringar i historiken.'
 ].join('\n');
 
+/** System-prompt för planeringsläge: utforska idén, bygg inget. */
+export const PLAN_PROMPT = [
+  'Du är en AI-planerare som hjälper en "vibe-coding"-utvecklare att tänka klart innan bygge.',
+  'Du BYGGER INTE kod nu — ingen HTML, ingen JSON, inga demos.',
+  'Ditt jobb: utforska och förtydliga idén, ställ klargörande frågor, föreslå struktur, funktioner och upplägg.',
+  'Svara på svenska i korta, läsbara stycken med punktlistor när det passar.',
+  'Avsluta gärna med en sammanfattning av vad du tänker bygga och fråga om du ska sätta igång.',
+  'Användaren växlar till byggläge när idén är tillräckligt tydlig.'
+].join('\n');
+
 /** Modeller som används som reserv när den valda är överbelastad (503) eller kvot-slu t (429). */
 const FALLBACKS = [
   'gemini-2.5-flash',
@@ -78,22 +88,34 @@ const FALLBACKS = [
 ];
 
 /**
- * Skickar hela konversationen till Gemini och returnerar den kompletta HTML-koden.
+ * Skickar hela konversationen till Gemini och returnerar en komplett HTML-demo.
  * Försöker vald modell först; vid 503/429 provar FALLBACKS automatiskt.
  * @param {Array<{role: 'user'|'model', content: string}>} history
  * @param {string} userMessage
  * @param {string} apiKey
  * @param {string} modelId
- * @returns {Promise<{html: string, model: string}>} html redo för iframe + vilken modell som svarade
+ * @returns {Promise<{html: string, model: string}>}
  */
 export async function callGemini(history, userMessage, apiKey, modelId) {
+  return generateWithFallback(history, userMessage, apiKey, modelId, SYSTEM_PROMPT, 'application/json');
+}
+
+/**
+ * Planeringsläge: samma historik/stabilitet, men svarar med vanlig text (ingen kod).
+ * @returns {Promise<{text: string, model: string}>}
+ */
+export async function callGeminiText(history, userMessage, apiKey, modelId) {
+  return generateWithFallback(history, userMessage, apiKey, modelId, PLAN_PROMPT, 'text/plain');
+}
+
+async function generateWithFallback(history, userMessage, apiKey, modelId, systemPrompt, mime) {
   const chain = [modelId, ...FALLBACKS.filter((m) => m !== modelId)];
   let lastError = null;
 
   for (const current of chain) {
     try {
-      const html = await generateOnce(history, userMessage, apiKey, current);
-      return { html, model: current };
+      const content = await generateOnce(history, userMessage, apiKey, current, systemPrompt, mime);
+      return { ...content, model: current };
     } catch (e) {
       lastError = e;
       // Bara retrya överbelastning/kvotfel; övriga fel är dödliga direkt
@@ -103,7 +125,7 @@ export async function callGemini(history, userMessage, apiKey, modelId) {
   throw lastError || new Error('Inga modeller svarade.');
 }
 
-async function generateOnce(history, userMessage, apiKey, modelId) {
+async function generateOnce(history, userMessage, apiKey, modelId, systemPrompt, mime) {
   const url = `${API_BASE}/${modelId}:generateContent?key=${apiKey}`;
 
   const contents = [
@@ -112,10 +134,10 @@ async function generateOnce(history, userMessage, apiKey, modelId) {
   ];
 
   const body = {
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    systemInstruction: { parts: [{ text: systemPrompt }] },
     contents,
     generationConfig: {
-      responseMimeType: 'application/json',
+      responseMimeType: mime,
       temperature: 0.7
     }
   };
@@ -153,10 +175,13 @@ async function generateOnce(history, userMessage, apiKey, modelId) {
     throw new Error('Inget innehåll i Gemini-svaret. Försök igen.');
   }
 
+  // Planläge: svara med rå text, inte JSON
+  if (mime === 'text/plain') return { text };
+
   try {
     const parsed = JSON.parse(text);
     if (typeof parsed.html === 'string' && parsed.html.trim().length > 0) {
-      return parsed.html;
+      return { html: parsed.html };
     }
   } catch (_) {}
 

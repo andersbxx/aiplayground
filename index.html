@@ -72,6 +72,10 @@
 
         <!-- Input bar -->
         <footer class="inputbar">
+          <div class="mode-row" aria-label="Arbetsläge">
+            <button type="button" id="modeBygga" class="mode-btn active" title="Skapa fungerande demo direkt">Bygga</button>
+            <button type="button" id="modePlaner" class="mode-btn" title="Diskutera och planera idén innan bygge">Planera</button>
+          </div>
           <div class="input-shell">
             <input type="text" id="promptInput" placeholder="Beskriv vad du vill bygga…" autocomplete="off" autocapitalize="sentences" spellcheck="false">
             <button class="send-btn" id="sendBtn" aria-label="Skicka">
