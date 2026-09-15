@@ -1,6 +1,6 @@
 {
-  "name": "AI Playground",
-  "short_name": "AiPlayground",
+  "name": "AiSnickarn",
+  "short_name": "AiSnickarn",
   "description": "Vibe coding — prompta demos som renderas direkt.",
   "start_url": "./",
   "scope": "./",

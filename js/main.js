@@ -703,7 +703,7 @@ function buildExportMd(s) {
   const lines = [];
   lines.push('# ' + (s.title || 'Ny chatt'));
   lines.push('');
-  lines.push('*Sparad från AiPlayground · ' + new Date(s.updated).toLocaleString('sv-SE') + '*');
+  lines.push('*Sparad från AiSnickarn · ' + new Date(s.updated).toLocaleString('sv-SE') + '*');
   lines.push('');
   let demoN = 0;
   let promptN = 0;
@@ -838,9 +838,9 @@ async function importSessionFromFile(file) {
   let text = '';
   try { text = await file.text(); } catch (_) { toast('Kunde inte läsa filen'); return; }
   const parsed = parseImportedMarkdown(text);
-  if (!parsed || !parsed.history.length) { toast('Filen verkar inte vara en AiPlayground-export'); return; }
+  if (!parsed || !parsed.history.length) { toast('Filen verkar inte vara en AiSnickarn-export'); return; }
   const fresh = addImportedSession(parsed);
-  if (!fresh) { toast('Filen verkar inte vara en AiPlayground-export'); return; }
+  if (!fresh) { toast('Filen verkar inte vara en AiSnickarn-export'); return; }
   closeChatsDrawer();
   toast('Importerad: ' + (fresh.title || 'Importerad chatt'));
 }

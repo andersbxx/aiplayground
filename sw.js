@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aiplayground-v12';
+const CACHE_NAME = 'aisnickarn-v13';
 const ASSETS = [
   './',
   './index.html',

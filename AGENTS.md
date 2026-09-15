@@ -1,4 +1,4 @@
-# AGENTS.md - AI Playground (AiPlayground)
+# AGENTS.md - AiSnickarn
 
 Handledning för AI-assistenter och utvecklare som arbetar med detta repo.
 

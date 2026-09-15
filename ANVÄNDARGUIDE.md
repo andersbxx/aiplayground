@@ -1,6 +1,6 @@
-# Användarguide — AiPlayground
+# Användarguide — AiSnickarn
 
-Så här använder du AiPlayground i vardagen (duet / iPhone / valfri enhet).
+Så här använder du AiSnickarn i vardagen (duet / iPhone / valfri enhet).
 
 ## Vad det är
 

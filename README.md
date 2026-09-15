@@ -1,4 +1,4 @@
-# AiPlayground
+# AiSnickarn
 
 A client-side AI playground for building and iterating on working web demos with Gemini — no backend, no build step, runs entirely in the browser.
 
@@ -45,7 +45,7 @@ Each exported session is a Markdown file with a title header and `##`-sections; 
 ````markdown
 # My session title
 
-*Sparad från AiPlayground · …*
+*Sparad från AiSnickarn · …*
 
 ## Prompt 1 — Du
 your original prompt
@@ -72,6 +72,6 @@ pip install --user --break-system-packages esprima
 python3 -c "import esprima,glob; [esprima.parseModule(open(f).read()) for f in glob.glob('js/*.js')]; print('OK')"
 ```
 
-Whenever **app assets change**, bump `CACHE_NAME` in `sw.js` (currently `aiplayground-v12`) so the service worker ships the new files.
+Whenever **app assets change**, bump `CACHE_NAME` in `sw.js` (currently `aisnickarn-v13`) so the service worker ships the new files.
 
 See `AGENTS.md` for conventions and `ANVÄNDARGUIDE.md` (Swedish) for end-user instructions.
