@@ -20,6 +20,7 @@ python3 -m http.server 8000
 ## Projektstruktur
 
 - **Vanilla JS** — inga ramverk, inga dependencies, inga build-steg
+- **Dokumentation:** `README.md` skrivs på **engelska**; end-användarguiden `ANVÄNDARGUIDE.md` på svenska. Håll bägge korta — uppdatera bara när något är README-värdigt.
 - `index.html` laddar `main.js` som ES-modul; modulerna importerar varandra
 - CSS använder dark glassmorphism-tema med `#070a10`-bakgrund, safe-area (`dvh`, `env(safe-area-inset-*)`)
 - Alla filer är PWA-kompatibla: `manifest.json`, `sw.js`, `icons/`
